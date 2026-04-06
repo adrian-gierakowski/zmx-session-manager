@@ -157,7 +157,7 @@ func TestFetchSessionsWithInjectedDeps(t *testing.T) {
 	defer func() { deps = orig }()
 
 	deps.command = func(name string, arg ...string) *exec.Cmd {
-		script := "printf 'session_name=demo\\tpid=123\\tclients=2\\tstarted_in=/tmp\\tcmd=vim\\n'"
+		script := "printf 'name=demo\\tpid=123\\tclients=2\\tstart_dir=/tmp\\tcmd=vim\\n'"
 		return exec.Command("sh", "-c", script)
 	}
 

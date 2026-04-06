@@ -42,13 +42,14 @@ func FetchSessions() ([]Session, error) {
 		}
 
 		s := Session{}
+		line = strings.TrimLeft(line, "→ ")
 		for _, field := range strings.Split(line, "\t") {
 			k, v, ok := strings.Cut(field, "=")
 			if !ok {
 				continue
 			}
 			switch k {
-			case "session_name":
+			case "name":
 				s.Name = v
 			case "pid":
 				s.PID = v
@@ -62,7 +63,7 @@ func FetchSessions() ([]Session, error) {
 					}
 					s.Clients = n
 				}
-			case "started_in":
+			case "start_dir":
 				s.StartedIn = v
 			case "cmd":
 				s.Cmd = v
