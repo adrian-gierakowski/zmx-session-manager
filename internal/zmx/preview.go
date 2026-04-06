@@ -7,13 +7,14 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
 )
 
 // FetchPreview returns the last `lines` lines of `zmx history <name> --vt`,
-// with all ANSI escape sequences stripped. Lines are NOT truncated so that
-// the caller can apply horizontal scrolling before display.
+// with all ANSI escape sequences stripped (except colors). Lines are NOT
+// truncated so that the caller can apply horizontal scrolling before display.
 func FetchPreview(name string, lines int) string {
 	if lines < 1 {
 		lines = 1
@@ -65,32 +66,75 @@ func tailLinesFromReader(r io.Reader, lines int) (string, error) {
 
 // ScrollPreview applies a horizontal offset and width to raw preview text,
 // truncating and padding each line for display in the preview pane.
+// It is ANSI-aware and preserves color sequences.
 func ScrollPreview(raw string, offsetX, maxWidth int) string {
 	lines := strings.Split(raw, "\n")
 	for i, line := range lines {
-		// Skip offsetX cells from the left
-		skipped := 0
-		runeIdx := 0
-		runes := []rune(line)
-		for runeIdx < len(runes) && skipped < offsetX {
-			w := runewidth.RuneWidth(runes[runeIdx])
-			skipped += w
-			runeIdx++
-		}
-		rest := string(runes[runeIdx:])
-		lines[i] = runewidth.FillRight(runewidth.Truncate(rest, maxWidth, ""), maxWidth)
+		lines[i] = scrollAndTruncateLine(line, offsetX, maxWidth)
 	}
 	return strings.Join(lines, "\n")
 }
 
+func scrollAndTruncateLine(line string, offsetX, maxWidth int) string {
+	var b strings.Builder
+	visualPos := 0    // Current visual position in the original line
+	writtenWidth := 0 // Visual width of runes written to the builder
+	i := 0
+	for i < len(line) {
+		if line[i] == '\x1b' {
+			start := i
+			i++
+			if i < len(line) && line[i] == '[' {
+				i++
+				for i < len(line) && (line[i] < 0x40 || line[i] > 0x7E) {
+					i++
+				}
+				if i < len(line) {
+					if line[i] == 'm' {
+						// Always keep SGR to maintain color state
+						b.WriteString(line[start : i+1])
+					}
+					i++
+				}
+			} else if i < len(line) && (line[i] == '(' || line[i] == ')') {
+				i += 2 // Skip charset sequences
+			} else {
+				i++ // Skip other ESC sequences
+			}
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(line[i:])
+		w := runewidth.RuneWidth(r)
+		if w < 0 {
+			w = 1 // Fallback
+		}
+
+		// If this rune is within the visible window
+		if visualPos >= offsetX && visualPos+w <= offsetX+maxWidth {
+			b.WriteRune(r)
+			writtenWidth += w
+		}
+
+		visualPos += w
+		i += size
+	}
+
+	if writtenWidth < maxWidth {
+		b.WriteString(strings.Repeat(" ", maxWidth-writtenWidth))
+	}
+	return b.String()
+}
+
 // stripANSI removes all ANSI escape sequences and non-printable control
-// characters (except newline and tab) from s.
+// characters (except newline and tab) from s, but preserves SGR (color) sequences.
 func stripANSI(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	i := 0
 	for i < len(s) {
 		if s[i] == '\x1b' {
+			start := i
 			i++
 			if i >= len(s) {
 				break
@@ -102,6 +146,9 @@ func stripANSI(s string) string {
 					i++
 				}
 				if i < len(s) {
+					if s[i] == 'm' {
+						b.WriteString(s[start : i+1])
+					}
 					i++ // skip final byte
 				}
 			case ']': // OSC sequence: ESC ] ... (BEL or ST)
