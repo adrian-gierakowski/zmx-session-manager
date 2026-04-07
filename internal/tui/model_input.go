@@ -86,12 +86,19 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		if m.cursor < len(visible) {
 			m.attachTarget = visible[m.cursor].Name
+			m.attachReplace = false // Loop back after detach
 			return m, tea.Quit
 		}
 
 	default:
 		if msg.Text != "" {
 			switch msg.Text {
+			case "e":
+				if m.cursor < len(visible) {
+					m.attachTarget = visible[m.cursor].Name
+					m.attachReplace = true // Replace process
+					return m, tea.Quit
+				}
 			case "k":
 				targets := m.killTargets()
 				if len(targets) > 0 {
