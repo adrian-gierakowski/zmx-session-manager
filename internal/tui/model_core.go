@@ -152,7 +152,8 @@ type Model struct {
 	filterText   string
 	sortMode     sortMode
 	sortAsc      bool
-	attachTarget string // non-empty → exec zmx attach after quit
+	attachTarget string // non-empty → attach to this session
+	attachReplace bool   // true → syscall.Exec (replace), false → exec.Command (loop)
 
 	preview        string
 	previewScrollX int
@@ -200,8 +201,8 @@ func NewModel() Model {
 	return initialModel()
 }
 
-func (m Model) AttachTarget() string {
-	return m.attachTarget
+func (m Model) AttachTarget() (string, bool) {
+	return m.attachTarget, m.attachReplace
 }
 
 // visibleSessions returns sessions matching the current filter, sorted by sortMode.
