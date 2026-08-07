@@ -13,7 +13,8 @@ func TestStripANSI(t *testing.T) {
 		{"\x1b[31mRed\x1b[0m", "\x1b[31mRed\x1b[0m"},
 		{"\x1b[1;32mBold Green\x1b[0m", "\x1b[1;32mBold Green\x1b[0m"},
 		{"Plain text", "Plain text"},
-		{"\x1b[H\x1b[2JClear screen", "Clear screen"}, // CSI H and J should be stripped
+		{"\x1b[H\x1b[2JClear screen", "Clear screen"},   // CSI H and J should be stripped
+		{"\x1bP1;2|terminal-payload\x1b\\Safe", "Safe"}, // DCS payload must not reach the preview
 	}
 
 	for _, tt := range tests {
@@ -44,5 +45,15 @@ func TestScrollPreviewANSI(t *testing.T) {
 	// Should STILL contain Red color start because we preserve all SGR
 	if !strings.Contains(got, "\x1b[31m") {
 		t.Errorf("ScrollPreview(input, 8, 5) lost Red color start: %q", got)
+	}
+}
+
+func TestScrollPreviewKeepsActiveStyleWithinCrop(t *testing.T) {
+	input := "\x1b[31mabcdefghij\x1b[32moutside"
+
+	got := ScrollPreview(input, 2, 3)
+	want := "\x1b[31mcde\x1b[0m"
+	if got != want {
+		t.Fatalf("ScrollPreview() = %q, want %q", got, want)
 	}
 }

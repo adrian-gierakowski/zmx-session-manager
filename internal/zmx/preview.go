@@ -7,9 +7,8 @@ import (
 	"io"
 	"strings"
 	"time"
-	"unicode/utf8"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // FetchPreview returns the last `lines` lines of `zmx history <name> --vt`,
@@ -76,54 +75,73 @@ func ScrollPreview(raw string, offsetX, maxWidth int) string {
 }
 
 func scrollAndTruncateLine(line string, offsetX, maxWidth int) string {
-	var b strings.Builder
-	visualPos := 0    // Current visual position in the original line
-	writtenWidth := 0 // Visual width of runes written to the builder
-	i := 0
-	for i < len(line) {
-		if line[i] == '\x1b' {
-			start := i
-			i++
-			if i < len(line) && line[i] == '[' {
-				i++
-				for i < len(line) && (line[i] < 0x40 || line[i] > 0x7E) {
-					i++
-				}
-				if i < len(line) {
-					if line[i] == 'm' {
-						// Always keep SGR to maintain color state
-						b.WriteString(line[start : i+1])
-					}
-					i++
-				}
-			} else if i < len(line) && (line[i] == '(' || line[i] == ')') {
-				i += 2 // Skip charset sequences
-			} else {
-				i++ // Skip other ESC sequences
+	if maxWidth <= 0 {
+		return ""
+	}
+	if offsetX < 0 {
+		offsetX = 0
+	}
+
+	var prefix, out strings.Builder
+	parser := ansi.NewParser()
+	var state byte
+	visualPos := 0
+	writtenWidth := 0
+	started := false
+	styled := false
+
+	for len(line) > 0 {
+		sequence, width, n, newState := ansi.DecodeSequence(line, state, parser)
+		if n == 0 {
+			break
+		}
+		line = line[n:]
+		state = newState
+
+		if isSGR(sequence, parser) {
+			if !started {
+				prefix.WriteString(sequence)
+			} else if visualPos < offsetX+maxWidth {
+				out.WriteString(sequence)
+				styled = true
 			}
 			continue
 		}
-
-		r, size := utf8.DecodeRuneInString(line[i:])
-		w := runewidth.RuneWidth(r)
-		if w < 0 {
-			w = 1 // Fallback
+		if width == 0 {
+			continue
 		}
 
-		// If this rune is within the visible window
-		if visualPos >= offsetX && visualPos+w <= offsetX+maxWidth {
-			b.WriteRune(r)
-			writtenWidth += w
+		nextPos := visualPos + width
+		if nextPos <= offsetX {
+			visualPos = nextPos
+			continue
 		}
-
-		visualPos += w
-		i += size
+		if visualPos >= offsetX+maxWidth {
+			break
+		}
+		if visualPos >= offsetX && nextPos <= offsetX+maxWidth {
+			if !started {
+				out.WriteString(prefix.String())
+				styled = prefix.Len() > 0
+				started = true
+			}
+			out.WriteString(sequence)
+			writtenWidth += width
+		}
+		visualPos = nextPos
 	}
 
+	if styled {
+		out.WriteString("\x1b[0m")
+	}
 	if writtenWidth < maxWidth {
-		b.WriteString(strings.Repeat(" ", maxWidth-writtenWidth))
+		out.WriteString(strings.Repeat(" ", maxWidth-writtenWidth))
 	}
-	return b.String()
+	return out.String()
+}
+
+func isSGR(sequence string, parser *ansi.Parser) bool {
+	return strings.HasPrefix(sequence, "\x1b[") && ansi.Cmd(parser.Command()).Final() == 'm'
 }
 
 // stripANSI removes all ANSI escape sequences and non-printable control
@@ -131,56 +149,18 @@ func scrollAndTruncateLine(line string, offsetX, maxWidth int) string {
 func stripANSI(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
-	i := 0
-	for i < len(s) {
-		if s[i] == '\x1b' {
-			start := i
-			i++
-			if i >= len(s) {
-				break
-			}
-			switch s[i] {
-			case '[': // CSI sequence: ESC [ ... <final byte 0x40-0x7E>
-				i++
-				for i < len(s) && (s[i] < 0x40 || s[i] > 0x7E) {
-					i++
-				}
-				if i < len(s) {
-					if s[i] == 'm' {
-						b.WriteString(s[start : i+1])
-					}
-					i++ // skip final byte
-				}
-			case ']': // OSC sequence: ESC ] ... (BEL or ST)
-				i++
-				for i < len(s) {
-					if s[i] == '\x07' {
-						i++
-						break
-					}
-					if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '\\' {
-						i += 2
-						break
-					}
-					i++
-				}
-			case '(', ')': // Charset designation: ESC ( X or ESC ) X
-				i++
-				if i < len(s) {
-					i++
-				}
-			default: // ESC + single character
-				i++
-			}
-		} else if s[i] == '\r' {
-			// Skip carriage return — we only want newlines
-			i++
-		} else if s[i] < 0x20 && s[i] != '\n' && s[i] != '\t' {
-			// Skip other control characters
-			i++
-		} else {
-			b.WriteByte(s[i])
-			i++
+	parser := ansi.NewParser()
+	var state byte
+	for len(s) > 0 {
+		sequence, width, n, newState := ansi.DecodeSequence(s, state, parser)
+		if n == 0 {
+			break
+		}
+		s = s[n:]
+		state = newState
+
+		if width > 0 || sequence == "\n" || sequence == "\t" || isSGR(sequence, parser) {
+			b.WriteString(sequence)
 		}
 	}
 	return b.String()
