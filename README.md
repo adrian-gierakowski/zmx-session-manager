@@ -43,7 +43,8 @@ go install github.com/mdsakalu/zmx-session-manager@latest
 | `↑` `↓` | Navigate sessions |
 | `space` | Toggle selection |
 | `ctrl+a` | Select / deselect all |
-| `enter` | Attach to session |
+| `enter` | Attach to session, then return to zsm after detaching |
+| `e` | Attach by replacing zsm (legacy behavior) |
 | `k` | Kill selected session(s) |
 | `c` | Copy attach command |
 | `s` | Cycle sort mode (name / clients / newest) |

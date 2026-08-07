@@ -167,6 +167,39 @@ func TestVisibleSessionsInvalidatesAfterFilterAndSortChange(t *testing.T) {
 	}
 }
 
+func TestAttachKeysProduceExplicitRequests(t *testing.T) {
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+		want AttachRequest
+	}{
+		{
+			name: "enter returns to zsm after detach",
+			key:  tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}),
+			want: AttachRequest{Target: "demo", Mode: AttachAndReturn},
+		},
+		{
+			name: "e replaces zsm process",
+			key:  tea.KeyPressMsg(tea.Key{Code: 'e', Text: "e"}),
+			want: AttachRequest{Target: "demo", Mode: AttachReplaceProcess},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := initialModel()
+			m.sessions = []Session{{Name: "demo"}}
+			m.markSessionsChanged()
+
+			updated, _ := m.Update(tt.key)
+			got := updated.(Model).AttachRequest()
+			if got != tt.want {
+				t.Fatalf("AttachRequest() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // stripStyleCodes removes ANSI escape sequences for test comparison.
 func stripStyleCodes(s string) string {
 	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)

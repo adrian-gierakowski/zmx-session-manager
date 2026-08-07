@@ -38,6 +38,21 @@ const (
 	sortModeCount
 )
 
+// AttachMode describes how zsm should launch the selected zmx session.
+type AttachMode uint8
+
+const (
+	AttachNone AttachMode = iota
+	AttachAndReturn
+	AttachReplaceProcess
+)
+
+// AttachRequest is the action selected when the TUI exits.
+type AttachRequest struct {
+	Target string
+	Mode   AttachMode
+}
+
 func (s sortMode) label() string {
 	switch s {
 	case sortByName:
@@ -149,11 +164,10 @@ type Model struct {
 	listOffset int
 	selected   map[string]bool
 
-	filterText   string
-	sortMode     sortMode
-	sortAsc      bool
-	attachTarget string // non-empty → attach to this session
-	attachReplace bool   // true → syscall.Exec (replace), false → exec.Command (loop)
+	filterText string
+	sortMode   sortMode
+	sortAsc    bool
+	attach     AttachRequest
 
 	preview        string
 	previewScrollX int
@@ -201,8 +215,8 @@ func NewModel() Model {
 	return initialModel()
 }
 
-func (m Model) AttachTarget() (string, bool) {
-	return m.attachTarget, m.attachReplace
+func (m Model) AttachRequest() AttachRequest {
+	return m.attach
 }
 
 // visibleSessions returns sessions matching the current filter, sorted by sortMode.

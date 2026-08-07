@@ -85,8 +85,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		if m.cursor < len(visible) {
-			m.attachTarget = visible[m.cursor].Name
-			m.attachReplace = false // Loop back after detach
+			m.attach = AttachRequest{Target: visible[m.cursor].Name, Mode: AttachAndReturn}
 			return m, tea.Quit
 		}
 
@@ -95,8 +94,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			switch msg.Text {
 			case "e":
 				if m.cursor < len(visible) {
-					m.attachTarget = visible[m.cursor].Name
-					m.attachReplace = true // Replace process
+					m.attach = AttachRequest{Target: visible[m.cursor].Name, Mode: AttachReplaceProcess}
 					return m, tea.Quit
 				}
 			case "k":
