@@ -295,6 +295,7 @@ func (m Model) renderHelp() string {
 		helpKeyStyle.Render("space") + helpStyle.Render(" sel"),
 		helpKeyStyle.Render("^a") + helpStyle.Render(" all"),
 		helpKeyStyle.Render("enter") + helpStyle.Render(" attach"),
+		helpKeyStyle.Render("e") + helpStyle.Render(" exec"),
 		helpKeyStyle.Render("k") + helpStyle.Render(" kill"),
 		helpKeyStyle.Render("c") + helpStyle.Render(" copy cmd"),
 		helpKeyStyle.Render("s") + helpStyle.Render(" sort"),
