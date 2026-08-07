@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
 )
@@ -13,7 +14,7 @@ import (
 func previewMaxWidth(raw string) int {
 	maxW := 0
 	for _, line := range strings.Split(raw, "\n") {
-		if w := runewidth.StringWidth(line); w > maxW {
+		if w := ansi.StringWidth(line); w > maxW {
 			maxW = w
 		}
 	}

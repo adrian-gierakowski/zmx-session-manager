@@ -107,6 +107,13 @@ func TestTruncateUnicodeWidth(t *testing.T) {
 	}
 }
 
+func TestPreviewMaxWidthIgnoresANSI(t *testing.T) {
+	got := previewMaxWidth("\x1b[31mred\x1b[0m\nplain")
+	if got != 5 {
+		t.Fatalf("previewMaxWidth() = %d, want 5", got)
+	}
+}
+
 func TestPreviewMsgIgnoresStaleSession(t *testing.T) {
 	m := initialModel()
 	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}}
