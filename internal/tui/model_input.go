@@ -16,6 +16,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if isQuit(msg) {
 		return m, tea.Quit
 	}
+	if msg.Code == tea.KeyEscape && m.filterText == "" {
+		return m, tea.Quit
+	}
 
 	m.handleLogScroll(msg)
 
@@ -85,13 +88,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		if m.cursor < len(visible) {
-			m.attachTarget = visible[m.cursor].Name
+			m.attach = AttachRequest{Target: visible[m.cursor].Name, Mode: AttachAndReturn}
 			return m, tea.Quit
 		}
 
 	default:
 		if msg.Text != "" {
 			switch msg.Text {
+			case "e":
+				if m.cursor < len(visible) {
+					m.attach = AttachRequest{Target: visible[m.cursor].Name, Mode: AttachReplaceProcess}
+					return m, tea.Quit
+				}
 			case "k":
 				targets := m.killTargets()
 				if len(targets) > 0 {

@@ -107,6 +107,13 @@ func TestTruncateUnicodeWidth(t *testing.T) {
 	}
 }
 
+func TestPreviewMaxWidthIgnoresANSI(t *testing.T) {
+	got := previewMaxWidth("\x1b[31mred\x1b[0m\nplain")
+	if got != 5 {
+		t.Fatalf("previewMaxWidth() = %d, want 5", got)
+	}
+}
+
 func TestPreviewMsgIgnoresStaleSession(t *testing.T) {
 	m := initialModel()
 	m.sessions = []Session{{Name: "alpha"}, {Name: "beta"}}
@@ -164,6 +171,75 @@ func TestVisibleSessionsInvalidatesAfterFilterAndSortChange(t *testing.T) {
 	visible = m.visibleSessions()
 	if len(visible) != 2 || visible[0].Name != "beta" {
 		t.Fatalf("sort invalidation failed: %+v", visible)
+	}
+}
+
+func TestAttachKeysProduceExplicitRequests(t *testing.T) {
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+		want AttachRequest
+	}{
+		{
+			name: "enter returns to zsm after detach",
+			key:  tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}),
+			want: AttachRequest{Target: "demo", Mode: AttachAndReturn},
+		},
+		{
+			name: "e replaces zsm process",
+			key:  tea.KeyPressMsg(tea.Key{Code: 'e', Text: "e"}),
+			want: AttachRequest{Target: "demo", Mode: AttachReplaceProcess},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := initialModel()
+			m.sessions = []Session{{Name: "demo"}}
+			m.markSessionsChanged()
+
+			updated, _ := m.Update(tt.key)
+			got := updated.(Model).AttachRequest()
+			if got != tt.want {
+				t.Fatalf("AttachRequest() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEscapeQuitsOnlyWhenNoFilterIsActive(t *testing.T) {
+	t.Run("unfiltered normal view quits", func(t *testing.T) {
+		m := initialModel()
+		_, cmd := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+		if cmd == nil {
+			t.Fatal("Escape returned no command, want tea.Quit")
+		}
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); !ok {
+			t.Fatalf("Escape command returned %T, want tea.QuitMsg", msg)
+		}
+	})
+
+	t.Run("active filter is cleared", func(t *testing.T) {
+		m := initialModel()
+		m.filterText = "demo"
+		updated, _ := m.handleKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+		got := updated.(Model)
+		if got.filterText != "" {
+			t.Fatalf("filterText = %q, want empty", got.filterText)
+		}
+	})
+}
+
+func TestEmptyListHighlightsRefreshKey(t *testing.T) {
+	m := initialModel()
+	got := m.renderList(5)
+
+	if plain := stripStyleCodes(got); plain != "  No sessions found. Press r to refresh." {
+		t.Fatalf("empty-list message = %q", plain)
+	}
+	if styledKey := helpKeyStyle.Render("r"); !strings.Contains(got, styledKey) {
+		t.Fatalf("refresh key is not highlighted in %q", got)
 	}
 }
 

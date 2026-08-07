@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 	"github.com/mdsakalu/zmx-session-manager/internal/zmx"
 )
@@ -13,7 +14,7 @@ import (
 func previewMaxWidth(raw string) int {
 	maxW := 0
 	for _, line := range strings.Split(raw, "\n") {
-		if w := runewidth.StringWidth(line); w > maxW {
+		if w := ansi.StringWidth(line); w > maxW {
 			maxW = w
 		}
 	}
@@ -190,7 +191,9 @@ func (m *Model) renderList(maxRows int) string {
 		if m.filterText != "" {
 			return normalStyle.Render("  No matches. Esc to clear filter.")
 		}
-		return normalStyle.Render("  No sessions found. Press r to refresh.")
+		return normalStyle.Render("  No sessions found. Press ") +
+			helpKeyStyle.Render("r") +
+			normalStyle.Render(" to refresh.")
 	}
 
 	lw := m.listInnerWidth()
@@ -294,6 +297,7 @@ func (m Model) renderHelp() string {
 		helpKeyStyle.Render("space") + helpStyle.Render(" sel"),
 		helpKeyStyle.Render("^a") + helpStyle.Render(" all"),
 		helpKeyStyle.Render("enter") + helpStyle.Render(" attach"),
+		helpKeyStyle.Render("e") + helpStyle.Render(" exec"),
 		helpKeyStyle.Render("k") + helpStyle.Render(" kill"),
 		helpKeyStyle.Render("c") + helpStyle.Render(" copy cmd"),
 		helpKeyStyle.Render("s") + helpStyle.Render(" sort"),
@@ -305,8 +309,12 @@ func (m Model) renderHelp() string {
 	}
 	parts = append(parts,
 		helpKeyStyle.Render("[]")+helpStyle.Render(" log"),
-		helpKeyStyle.Render("q")+helpStyle.Render(" quit"),
 	)
+	quitKeys := "q"
+	if m.filterText == "" {
+		quitKeys = "q/esc"
+	}
+	parts = append(parts, helpKeyStyle.Render(quitKeys)+helpStyle.Render(" quit"))
 
 	if m.status != "" {
 		parts = append(parts, statusStyle.Render(m.status))
